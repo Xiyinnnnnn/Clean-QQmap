@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <!-- 移除官方SDK自带的一键反馈录屏模块所需的录音权限（导航不使用） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+
+    <application
+        android:name=".NaviApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <!--
+          腾讯 Key 不再打包内置（开源发布用）。
+          留一个空占位，SDK 会回退到运行时注入的值（见 KeyManager）：
+            地图/导航：TencentMapOptions.setMapKey()
+            定位：     TencentLocationManagerOptions.setKey()
+          开发者若想内置自己的 Key，把 value 填上即可（此时使用者无需再输入）。
+        -->
+        <meta-data
+            android:name="TencentMapSDK"
+            android:value="" />
+
+        <!-- 启动页：负责校验/配置 Key，通过后进入地图 -->
+        <activity
+            android:name=".KeySetupActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".MainActivity" />
+
+        <!-- 移除官方SDK自带的一键反馈录屏组件（与导航无关的运营/反馈模块） -->
+        <activity
+            android:name="com.tencent.map.navi.feedback.screen.report.OneKeyReportActivity"
+            tools:node="remove" />
+        <service
+            android:name="com.tencent.map.navi.feedback.screen.report.TnkReportService"
+            tools:node="remove" />
+
+        <!-- 驾车实时导航 -->
+        <activity android:name=".CarNaviActivity" />
+        <!-- 骑行实时导航 -->
+        <activity android:name=".RideNaviActivity" />
+        <!-- 步行实时导航 -->
+        <activity android:name=".WalkNaviActivity" />
+    </application>
+</manifest>

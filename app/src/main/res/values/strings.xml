@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">个人导航</string>
+
+    <!-- 搜索 -->
+    <string name="search_hint">搜索目的地</string>
+    <string name="action_search">搜索</string>
+    <string name="need_keyword">请输入要搜索的地点名称</string>
+    <string name="searching">搜索中…</string>
+    <string name="no_result">没有找到相关地点</string>
+    <string name="search_failed">搜索失败：</string>
+
+    <!-- 起终点 -->
+    <string name="start_default">起点：正在获取当前位置…</string>
+    <string name="dest_default">终点：请在上方搜索目的地</string>
+    <string name="need_dest">请先搜索并点击一个目的地</string>
+    <string name="need_start">尚未获取到当前位置，请检查定位权限与 GPS 开关</string>
+    <string name="gps_check">定位异常，请检查：①定位权限 ②系统定位开关 ③在空旷处等待</string>
+
+    <!-- 导航 -->
+    <string name="choose_navi">选择导航方式（驾车 / 骑行 / 步行）</string>
+    <string name="navi_car">驾车导航</string>
+    <string name="navi_ride">骑行导航</string>
+    <string name="navi_walk">步行导航</string>
+    <string name="locating">定位中…</string>
+    <string name="planning">正在规划路线…</string>
+    <string name="plan_failed">路线规划失败：</string>
+    <!-- 首次 Key 鉴权（开源用） -->
+    <string name="key_title">首次使用：配置腾讯地图 Key</string>
+    <string name="key_help">本应用开源，不内置作者的 Key。请填写你自己的腾讯位置服务 Key（格式如 XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX）。\n\n申请地址：lbs.qq.com → 控制台 → 应用管理\n注意：Key 需绑定本应用的包名与签名 SHA1，否则地图与算路会失败。</string>
+    <string name="key_placeholder">请输入你的腾讯地图 Key</string>
+    <string name="key_confirm">校验并进入</string>
+    <string name="key_hint">请输入 Key 后点击「校验并进入」</string>
+    <string name="key_too_short">Key 格式不正确，长度过短</string>
+    <string name="key_verifying">正在校验 Key…</string>
+    <string name="key_invalid">Key 无效或已过期，请重新输入</string>
+    <string name="key_change">更换 Key</string>
+    <string name="key_current_prefix">当前 Key：</string>
+</resources>

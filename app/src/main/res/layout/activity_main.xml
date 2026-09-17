@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <fragment
+        android:id="@+id/map_frag"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        class="com.xiyin.navi.core.KeyedMapFragment" />
+
+    <!-- 顶部：搜索框 + 搜索按钮 + 结果列表 -->
+    <LinearLayout
+        android:id="@+id/search_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#FFFFFF"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/search_input"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingLeft="14dp"
+                android:paddingRight="8dp"
+                android:singleLine="true"
+                android:textColor="#222222"
+                android:textColorHint="#888888"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/btn_search"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginRight="4dp"
+                android:minWidth="64dp"
+                android:text="@string/action_search"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- 结果区：固定高度 + 可滚动，避免 ListView 在 wrap_content 下的测量问题 -->
+        <ScrollView
+            android:id="@+id/result_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="260dp"
+            android:background="#FFFFFF"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/result_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+    </LinearLayout>
+
+    <!-- 底部信息条 -->
+    <LinearLayout
+        android:id="@+id/bottom_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="#EEFFFFFF"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/txt_start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/start_default"
+            android:textColor="#1B5E20"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/txt_dest"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/dest_default"
+            android:textColor="#B71C1C"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/txt_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text=""
+            android:textColor="#555555"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_navi"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginTop="6dp"
+            android:text="@string/choose_navi"
+            android:textSize="16sp" />
+    </LinearLayout>
+</FrameLayout>

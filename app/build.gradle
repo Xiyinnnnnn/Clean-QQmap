@@ -1,0 +1,87 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.xiyin.navi'
+    buildToolsVersion '34.0.0'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.xiyin.navi"
+        minSdk 24
+        targetSdk 30
+        versionCode 17
+        versionName "4.0.0"
+        // v2.7 减重：只保留 arm64-v8a（v8a）。
+        // 依据：v2.6 实测设备为 arm64；去掉 armeabi-v7a 可直接省掉约 14MB 压缩体积。
+        // 如需兼容 32 位老设备，把 'armeabi-v7a' 加回来即可。
+        ndk { abiFilters 'arm64-v8a' }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    // 开源发布：签名配置不硬编码个人信息。
+    // 若你要出正式 Release，请在 ~/.gradle/gradle.properties 或项目根 gradle.properties
+    // 中提供以下四项（或用环境变量），并把 keystore 路径填到 RELEASE_STORE_FILE：
+    //   RELEASE_STORE_FILE / RELEASE_STORE_PASSWORD / RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD
+    signingConfigs {
+        release {
+            def storePath = project.findProperty('RELEASE_STORE_FILE')
+                    ?: System.getenv('RELEASE_STORE_FILE')
+            if (storePath != null && file(storePath).exists()) {
+                storeFile file(storePath)
+                storePassword project.findProperty('RELEASE_STORE_PASSWORD')
+                        ?: System.getenv('RELEASE_STORE_PASSWORD')
+                keyAlias project.findProperty('RELEASE_KEY_ALIAS')
+                        ?: System.getenv('RELEASE_KEY_ALIAS')
+                keyPassword project.findProperty('RELEASE_KEY_PASSWORD')
+                        ?: System.getenv('RELEASE_KEY_PASSWORD')
+                enableV1Signing true
+                enableV2Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        debug { minifyEnabled false }
+        release {
+            // 未提供签名配置时不指定 signingConfig（避免克隆后无法构建）
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+            // v2.8 减重：剔除腾讯内置 TTS 的语音数据文件（共 7.25MB，占整包 33%）
+            //
+            // 安全性依据（反编译 com.tencent.map.voice 实证）：
+            //  1) TtsHelper 的静态初始化与 setTtsEnabled() 只加载 libAisound.so（已保留），
+            //     从不 loadLibrary 这两个文件
+            //  2) 这两个文件实际是「语音数据文件」，由 com.tencent.map.voice.b 用
+            //     File.exists() 检查；缺失时 SDK 自己打印
+            //     "tts data file does not exists!" 后 return，不抛异常
+            //  3) 本 App 已 setInternalTtsEnabled(false)，语音走 Android 本机 TTS，
+            //     正常路径不会触达内置语音
+            excludes += ['**/libTtsVoiceCommon.so', '**/libTtsVoiceXiaoyan.so']
+        }
+        resources { excludes += ['META-INF/*.kotlin_module'] }
+    }
+
+    lint { abortOnError false; checkReleaseBuilds false }
+}
+
+dependencies {
+    implementation 'com.android.support:appcompat-v7:28.0.0'
+    implementation 'com.android.support.constraint:constraint-layout:1.0.2'
+    implementation 'com.google.code.gson:gson:2.8.5'
+    implementation 'com.tencent.map:tencent-map-vector-sdk:4.4.5.8'
+    implementation 'com.tencent.map:tencent-map-nav-sdk:5.3.4.0'
+    implementation 'com.tencent.map:tencent-map-nav-surport:1.0.2.8'
+}

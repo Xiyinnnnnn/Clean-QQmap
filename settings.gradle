@@ -1,0 +1,12 @@
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        maven { url 'https://dl.google.com/dl/android/maven2' ; allowInsecureProtocol = false }
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://repo1.maven.org/maven2' }
+        maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public' }
+    }
+}
+rootProject.name = "MyNavi"
+include ':app'

@@ -1,0 +1,14 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+build/
+app/build/
+captures/
+.externalNativeBuild
+
+# 签名与个人配置（开源不提交）
+*.jks
+*.keystore
+keystore.properties
+local.properties
