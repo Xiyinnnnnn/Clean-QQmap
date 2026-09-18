@@ -1,12 +1,15 @@
 package com.xiyin.navi;
 
+import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.util.TypedValue;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -89,6 +92,48 @@ public class TransitDetailActivity extends AppCompatActivity {
         if (!seg.walkDesc.isEmpty()) {
             addSimpleText(seg.walkDesc, 13, 0xFF666666, false);
         }
+        // v4.2：该步行段起终点明确时，提供进入步行实时导航的入口
+        // （首段 = 起点→地铁站；末段 = 地铁站→终点）
+        if (hasCoords(seg)) {
+            addWalkNaviButton(seg, no);
+        }
+    }
+
+    /** 起终点都必须落在有效经纬度范围内，缺一不可导航（防止把 0,0 当坐标）。 */
+    private boolean hasCoords(TransitSearch.Seg seg) {
+        return valid(seg.startLat, seg.startLng) && valid(seg.endLat, seg.endLng);
+    }
+
+    private boolean valid(double lat, double lng) {
+        return lat > 3 && lat < 54 && lng > 73 && lng < 136;
+    }
+
+    /** 跳转到现有步行实时导航页（复用 WalkNaviActivity，不新建页面）。 */
+    private void addWalkNaviButton(TransitSearch.Seg seg, int no) {
+        Button btn = new Button(this);
+        btn.setText(getString(R.string.walk_navi_entry, no));
+        btn.setAllCaps(false);
+        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        btn.setTextColor(0xFFFFFFFF);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFF1B5E20);
+        bg.setCornerRadius(dp(6));
+        btn.setBackground(bg);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(38));
+        lp.topMargin = dp(6);
+        btn.setLayoutParams(lp);
+        btn.setOnClickListener(v -> {
+            Intent i = new Intent(this, WalkNaviActivity.class);
+            i.putExtra(AppConst.EXTRA_MODE, AppConst.MODE_WALK);
+            i.putExtra(AppConst.EXTRA_START_LAT, seg.startLat);
+            i.putExtra(AppConst.EXTRA_START_LNG, seg.startLng);
+            i.putExtra(AppConst.EXTRA_DEST_LAT, seg.endLat);
+            i.putExtra(AppConst.EXTRA_DEST_LNG, seg.endLng);
+            i.putExtra(AppConst.EXTRA_DEST_NAME, getString(R.string.walk_navi_entry, no));
+            startActivity(i);
+        });
+        container.addView(btn);
     }
 
     /** 乘车段：线路卡片。 */

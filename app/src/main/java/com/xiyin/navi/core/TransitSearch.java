@@ -53,6 +53,10 @@ public final class TransitSearch {
     public static final class Seg implements Serializable {
         /** true=乘车段，false=步行段。 */
         public boolean transit;
+        /** 本段起点坐标（GCJ-02）。步行段=该段首点；乘车段=上车站。 */
+        public double startLat, startLng;
+        /** 本段终点坐标（GCJ-02）。步行段=该段末点；乘车段=下车站。 */
+        public double endLat, endLng;
 
         // ---- 步行段 ----
         public int walkDistanceM;
@@ -182,6 +186,14 @@ public final class TransitSearch {
                     seg.walkDurationMin = s.duration;
                     seg.walkDirection = s.direction == null ? "" : s.direction;
                     seg.walkDesc = buildWalkDesc(s.steps);
+                    // 步行段坐标 = 折线首点 / 末点
+                    double[] ends = polylineEnds(s.polyline);
+                    if (ends != null) {
+                        seg.startLat = ends[0];
+                        seg.startLng = ends[1];
+                        seg.endLat = ends[2];
+                        seg.endLng = ends[3];
+                    }
                     if (seg.walkDistanceM > 0) {
                         p.segments.add(seg);
                     }
@@ -219,9 +231,17 @@ public final class TransitSearch {
             if (ln.geton.exit != null) {
                 seg.getOnExit = ln.geton.exit.title == null ? "" : ln.geton.exit.title;
             }
+            if (ln.geton.location != null) {
+                seg.startLat = ln.geton.location.lat;
+                seg.startLng = ln.geton.location.lng;
+            }
         }
         if (ln.getoff != null) {
             seg.getOffName = ln.getoff.title == null ? "" : ln.getoff.title;
+            if (ln.getoff.location != null) {
+                seg.endLat = ln.getoff.location.lat;
+                seg.endLng = ln.getoff.location.lng;
+            }
         }
         // 站点序列 = 上车站 + 途经站（官方 stations 一般不包含上车站）
         if (!seg.getOnName.isEmpty()) {
@@ -259,6 +279,41 @@ public final class TransitSearch {
             sb.append(w.instruction);
         }
         return sb.toString();
+    }
+
+    /**
+     * 取压缩折线首末点，返回 [startLat, startLng, endLat, endLng]；数据不足返回 null。
+     * 格式：前两个数是起点经纬度（度），其后每两个数是相对上一点的增量（1e-6 度）。
+     * 已用真实返回实测校验（首末点 = 该步行段起终点）。
+     */
+    static double[] polylineEnds(List<Double> pl) {
+        if (pl == null || pl.size() < 4) {
+            return null;
+        }
+        double startLat = pl.get(0);
+        double startLng = pl.get(1);
+        double lat = startLat;
+        double lng = startLng;
+        for (int i = 2; i + 1 < pl.size(); i += 2) {
+            lat += pl.get(i) / 1e6;
+            lng += pl.get(i + 1) / 1e6;
+        }
+        // 偶数长度时最后两数是终点增量；奇数长度时以倒数第二点为末点
+        double endLat = lat;
+        double endLng = lng;
+        int n = pl.size();
+        if (n % 2 == 0) {
+            endLat = lat;
+            endLng = lng;
+        } else {
+            endLat = startLat;
+            endLng = startLng;
+            for (int i = 2; i + 1 < n - 1; i += 2) {
+                endLat += pl.get(i) / 1e6;
+                endLng += pl.get(i + 1) / 1e6;
+            }
+        }
+        return new double[]{startLat, startLng, endLat, endLng};
     }
 
     private static String readStream(InputStream is) {
@@ -323,6 +378,7 @@ public final class TransitSearch {
         int distance;
         int duration;
         String direction;
+        List<Double> polyline;
         List<WalkStep> steps;
         List<Line> lines;
     }
@@ -355,6 +411,12 @@ public final class TransitSearch {
     static final class GetOn {
         String title;
         Exit exit;
+        Location location;
+    }
+
+    static final class Location {
+        double lat;
+        double lng;
     }
 
     static final class Exit {
@@ -363,6 +425,7 @@ public final class TransitSearch {
 
     static final class GetOff {
         String title;
+        Location location;
     }
 
     static final class Station {

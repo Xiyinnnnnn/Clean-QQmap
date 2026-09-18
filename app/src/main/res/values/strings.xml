@@ -38,6 +38,7 @@
     <string name="transit_title_to">公交 / 地铁 · 前往</string>
     <string name="transit_detail_title">换乘详情</string>
     <string name="transit_detail_title_to">站点导航 · 前往</string>
+    <string name="walk_navi_entry">%1$d. 本段步行导航</string>
     <string name="plan_failed">路线规划失败：</string>
     <!-- 首次 Key 鉴权（开源用） -->
     <string name="key_title">首次使用：配置腾讯地图 Key</string>
