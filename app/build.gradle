@@ -9,8 +9,8 @@ android {
         applicationId "com.xiyin.navi"
         minSdk 24
         targetSdk 30
-        versionCode 17
-        versionName "4.0.0"
+        versionCode 18
+        versionName "4.1.0"
         // v2.7 减重：只保留 arm64-v8a（v8a）。
         // 依据：v2.6 实测设备为 arm64；去掉 armeabi-v7a 可直接省掉约 14MB 压缩体积。
         // 如需兼容 32 位老设备，把 'armeabi-v7a' 加回来即可。

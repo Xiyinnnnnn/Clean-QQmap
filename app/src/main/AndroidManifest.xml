@@ -61,5 +61,9 @@
         <activity android:name=".RideNaviActivity" />
         <!-- 步行实时导航 -->
         <activity android:name=".WalkNaviActivity" />
+        <!-- 公交 / 地铁换乘方案 -->
+        <activity android:name=".TransitActivity" />
+        <!-- 公交换乘站点导航详情 -->
+        <activity android:name=".TransitDetailActivity" />
     </application>
 </manifest>

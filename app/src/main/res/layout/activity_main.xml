@@ -77,6 +77,23 @@
         android:orientation="vertical"
         android:padding="10dp">
 
+        <!-- 自定义起点：搜索结果在输入框「上方」展开。
+             底部面板是 bottom 对齐 + wrap_content，此处展开会让面板自然向上生长，
+             视觉上即“从底部往上弹”，与顶部终点框（向下弹）形成区分。 -->
+        <ScrollView
+            android:id="@+id/start_result_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:background="#FFFFFF"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/start_result_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+
         <TextView
             android:id="@+id/txt_start"
             android:layout_width="match_parent"
@@ -107,12 +124,40 @@
             android:textColor="#555555"
             android:textSize="12sp" />
 
-        <Button
-            android:id="@+id/btn_navi"
+        <!-- 自定义起点输入：留空 + 回车 = 恢复“当前实时位置”为起点 -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="46dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="@string/choose_navi"
-            android:textSize="16sp" />
+            android:background="#FFFFFF"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/start_input"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/start_hint"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingLeft="14dp"
+                android:paddingRight="8dp"
+                android:singleLine="true"
+                android:textColor="#222222"
+                android:textColorHint="#888888"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/btn_start_search"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginRight="4dp"
+                android:minWidth="64dp"
+                android:text="@string/action_search"
+                android:textSize="14sp" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

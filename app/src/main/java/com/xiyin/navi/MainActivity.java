@@ -79,6 +79,17 @@ public class MainActivity extends AppCompatActivity
     private boolean firstCenterDone;
     private boolean searching;
 
+    // ===== v4.2：底部自定义起点 =====
+    /** 底部起点输入框（留空回车 = 恢复实时定位为起点） */
+    private EditText startInput;
+    /** 起点搜索结果容器（在输入框上方展开，"从底部往上弹"） */
+    private View startResultScroll;
+    private LinearLayout startResultContainer;
+    /** 自定义起点；null 表示使用当前实时定位 */
+    private PlaceSearch.Place startPlace;
+    /** 起点结果列表 */
+    private final List<PlaceSearch.Place> startResults = new ArrayList<>();
+
     /** 是否刚去导航：回来时清掉终点并刷新回当前定位 */
     private volatile boolean wentToNavi;
 
@@ -138,7 +149,30 @@ public class MainActivity extends AppCompatActivity
         // 搜索按钮
         findViewById(R.id.btn_search).setOnClickListener(v -> doSearch());
 
-        findViewById(R.id.btn_navi).setOnClickListener(v -> chooseNaviMode());
+        // ===== v4.2：底部起点输入 =====
+        startInput = findViewById(R.id.start_input);
+        startResultScroll = findViewById(R.id.start_result_scroll);
+        startResultContainer = findViewById(R.id.start_result_container);
+        // 回车（IME 搜索键）→ 搜索起点；输入为空则恢复「当前定位」
+        startInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH
+                    || actionId == EditorInfo.IME_ACTION_DONE
+                    || actionId == EditorInfo.IME_ACTION_GO
+                    || actionId == EditorInfo.IME_NULL) {
+                doStartSearch();
+                return true;
+            }
+            return false;
+        });
+        startInput.setOnKeyListener((v, keyCode, event) -> {
+            if (keyCode == android.view.KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                doStartSearch();
+                return true;
+            }
+            return false;
+        });
+        findViewById(R.id.btn_start_search).setOnClickListener(v -> doStartSearch());
 
         // 长按底部状态行 → 更换 Key（复用鉴权页）
         txtStatus.setOnLongClickListener(v -> {
@@ -202,6 +236,109 @@ public class MainActivity extends AppCompatActivity
                         getString(R.string.search_failed) + message, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    /**
+     * v4.2：搜索自定义起点。
+     * <p>输入为空 → 视为「恢复当前实时位置为起点」（startPlace=null）。
+     * 结果在底部输入框<b>上方</b>展开，与顶部终点框（向下弹）区分。
+     */
+    private void doStartSearch() {
+        final String keyword = startInput.getText() == null
+                ? "" : startInput.getText().toString().trim();
+        if (keyword.length() == 0) {
+            // 留空回车 = 恢复实时定位为起点
+            startPlace = null;
+            startResults.clear();
+            startResultContainer.removeAllViews();
+            startResultScroll.setVisibility(View.GONE);
+            hideKeyboard();
+            txtStatus.setText(R.string.start_reset);
+            updateStartText();
+            return;
+        }
+        if (searching) {
+            Log.w(TAG, "上一次搜索未结束，忽略");
+            return;
+        }
+        searching = true;
+        hideKeyboard();
+        txtStatus.setText(R.string.searching);
+        placeSearch.search(this, keyword, new PlaceSearch.Callback() {
+            @Override
+            public void onResult(List<PlaceSearch.Place> places) {
+                searching = false;
+                showStartResults(places);
+            }
+
+            @Override
+            public void onError(String message) {
+                searching = false;
+                startResultScroll.setVisibility(View.GONE);
+                txtStatus.setText(getString(R.string.search_failed) + message);
+            }
+        });
+    }
+
+    /** 起点搜索结果：填入底部容器（在输入框上方展开）。 */
+    private void showStartResults(List<PlaceSearch.Place> places) {
+        startResults.clear();
+        startResults.addAll(places);
+        startResultContainer.removeAllViews();
+        if (startResults.isEmpty()) {
+            startResultScroll.setVisibility(View.GONE);
+            txtStatus.setText(R.string.no_result);
+            return;
+        }
+        LayoutInflater inflater = getLayoutInflater();
+        for (int i = 0; i < startResults.size(); i++) {
+            final int index = i;
+            PlaceSearch.Place p = startResults.get(i);
+            View row = inflater.inflate(R.layout.search_item, startResultContainer, false);
+            ((TextView) row.findViewById(R.id.item_title))
+                    .setText(p.title == null ? "" : p.title);
+            ((TextView) row.findViewById(R.id.item_address))
+                    .setText(p.address == null ? "" : p.address);
+            row.setOnClickListener(v -> onStartPlaceSelected(index));
+            startResultContainer.addView(row);
+        }
+        startResultScroll.setVisibility(View.VISIBLE);
+        txtStatus.setText(getString(R.string.start_found_prefix) + startResults.size()
+                + getString(R.string.start_found_suffix));
+    }
+
+    /** 选中自定义起点：上图并收起结果框（不触发导航方式弹窗）。 */
+    private void onStartPlaceSelected(int index) {
+        if (index < 0 || index >= startResults.size()) {
+            return;
+        }
+        PlaceSearch.Place p = startResults.get(index);
+        startPlace = p;
+        Log.i(TAG, "选中自定义起点: " + p.title + " " + p.lat + "," + p.lng);
+        startResultScroll.setVisibility(View.GONE);
+        hideKeyboard();
+        if (tencentMap != null) {
+            tencentMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                    new LatLng(p.lat, p.lng), 15f));
+        }
+        updateStartText();
+    }
+
+    /** 刷新底部「起点」文案：自定义起点显示名称，否则显示实时定位。 */
+    private void updateStartText() {
+        if (startPlace != null) {
+            txtStart.setText(getString(R.string.start_custom) + startPlace.title);
+            return;
+        }
+        LocationFix last = AppLocation.get().getLastFix();
+        if (last != null) {
+            txtStart.setText(String.format(Locale.CHINA,
+                    "起点（当前位置）：%.5f, %.5f  ±%.0fm  卫星%d  %s",
+                    last.latitude, last.longitude, last.accuracy,
+                    AppLocation.get().getSatellites(), last.provider));
+        } else {
+            txtStart.setText(R.string.start_default);
+        }
     }
 
     /** 把结果填充进容器（固定高度 ScrollView，避免 ListView 的测量坑） */
@@ -308,10 +445,13 @@ public class MainActivity extends AppCompatActivity
             Log.i(TAG, "首次定位居中: " + fix);
         }
 
-        txtStart.setText(String.format(Locale.CHINA,
-                "起点（当前位置）：%.5f, %.5f  ±%.0fm  卫星%d  %s",
-                fix.latitude, fix.longitude, fix.accuracy,
-                AppLocation.get().getSatellites(), fix.provider));
+        // v4.2：设了自定义起点时，底部起点文案保持自定义名称不被 GPS 覆盖
+        if (startPlace == null) {
+            txtStart.setText(String.format(Locale.CHINA,
+                    "起点（当前位置）：%.5f, %.5f  ±%.0fm  卫星%d  %s",
+                    fix.latitude, fix.longitude, fix.accuracy,
+                    AppLocation.get().getSatellites(), fix.provider));
+        }
         Log.i(TAG, "定位已上图（GCJ02）: " + fix);
         updateStatus();
     }
@@ -376,7 +516,8 @@ public class MainActivity extends AppCompatActivity
             Toast.makeText(this, R.string.need_dest, Toast.LENGTH_SHORT).show();
             return;
         }
-        if (startFix == null || !startFix.isValid()) {
+        // v4.2：起点可以是自定义地点；只有两者都没有时才拦下
+        if (startPlace == null && (startFix == null || !startFix.isValid())) {
             Toast.makeText(this, R.string.need_start, Toast.LENGTH_LONG).show();
             txtStatus.setText(R.string.gps_check);
             return;
@@ -386,10 +527,12 @@ public class MainActivity extends AppCompatActivity
                 .setItems(new CharSequence[]{
                         getString(R.string.navi_car),
                         getString(R.string.navi_ride),
-                        getString(R.string.navi_walk)
+                        getString(R.string.navi_walk),
+                        getString(R.string.navi_transit)
                 }, (dialog, which) -> {
                     int mode = which == 0 ? AppConst.MODE_CAR
-                            : (which == 1 ? AppConst.MODE_RIDE : AppConst.MODE_WALK);
+                            : (which == 1 ? AppConst.MODE_RIDE
+                            : (which == 2 ? AppConst.MODE_WALK : AppConst.MODE_TRANSIT));
                     startNavi(mode);
                 })
                 .show();
@@ -397,11 +540,15 @@ public class MainActivity extends AppCompatActivity
 
     private void startNavi(int mode) {
         Class<?> target = mode == AppConst.MODE_CAR ? CarNaviActivity.class
-                : (mode == AppConst.MODE_RIDE ? RideNaviActivity.class : WalkNaviActivity.class);
+                : (mode == AppConst.MODE_RIDE ? RideNaviActivity.class
+                : (mode == AppConst.MODE_WALK ? WalkNaviActivity.class : TransitActivity.class));
         Intent intent = new Intent(this, target);
         intent.putExtra(AppConst.EXTRA_MODE, mode);
-        intent.putExtra(AppConst.EXTRA_START_LAT, startFix.latitude);
-        intent.putExtra(AppConst.EXTRA_START_LNG, startFix.longitude);
+        // v4.2：起点优先用自定义起点，未设则用当前实时定位
+        double sLat = startPlace != null ? startPlace.lat : startFix.latitude;
+        double sLng = startPlace != null ? startPlace.lng : startFix.longitude;
+        intent.putExtra(AppConst.EXTRA_START_LAT, sLat);
+        intent.putExtra(AppConst.EXTRA_START_LNG, sLng);
         intent.putExtra(AppConst.EXTRA_DEST_LAT, destPlace.lat);
         intent.putExtra(AppConst.EXTRA_DEST_LNG, destPlace.lng);
         intent.putExtra(AppConst.EXTRA_DEST_NAME,
@@ -529,13 +676,17 @@ public class MainActivity extends AppCompatActivity
             LatLng ll = new LatLng(last.latitude, last.longitude);
             tencentMap.animateCamera(CameraUpdateFactory.newLatLngZoom(ll, 17f));
             firstCenterDone = true;
-            txtStart.setText(String.format(Locale.CHINA,
-                    "起点（当前位置）：%.5f, %.5f  ±%.0fm  卫星%d  %s",
-                    last.latitude, last.longitude, last.accuracy,
-                    AppLocation.get().getSatellites(), last.provider));
+            if (startPlace == null) {
+                txtStart.setText(String.format(Locale.CHINA,
+                        "起点（当前位置）：%.5f, %.5f  ±%.0fm  卫星%d  %s",
+                        last.latitude, last.longitude, last.accuracy,
+                        AppLocation.get().getSatellites(), last.provider));
+            }
             Log.i(TAG, "复位后重新上图（GCJ02）: " + last);
         } else {
-            txtStart.setText(R.string.start_default);
+            if (startPlace == null) {
+                txtStart.setText(R.string.start_default);
+            }
             txtStatus.setText("正在重新定位…");
         }
     }

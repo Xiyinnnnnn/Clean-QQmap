@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:orientation="vertical">
+
+    <!-- 标题栏 -->
+    <TextView
+        android:id="@+id/transit_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#3B7BFF"
+        android:paddingLeft="16dp"
+        android:paddingTop="14dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="14dp"
+        android:text="@string/transit_title"
+        android:textColor="#FFFFFF"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <!-- 换乘方案列表（可滚动） -->
+    <ScrollView
+        android:id="@+id/transit_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#FFFFFF">
+
+        <LinearLayout
+            android:id="@+id/transit_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <!-- 底部状态 -->
+    <TextView
+        android:id="@+id/transit_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#EEFFFFFF"
+        android:padding="10dp"
+        android:text="@string/transit_planning"
+        android:textColor="#555555"
+        android:textSize="13sp" />
+</LinearLayout>

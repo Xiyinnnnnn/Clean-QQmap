@@ -63,6 +63,8 @@ public final class AppConst {
     public static final int MODE_CAR = 0;
     public static final int MODE_RIDE = 1;
     public static final int MODE_WALK = 2;
+    /** 公交 / 地铁换乘方案（v4.1 新增；腾讯 NaviSDK 无公交实时导航入口，走官方换乘规划） */
+    public static final int MODE_TRANSIT = 3;
 
     /** Intent 参数 */
     public static final String EXTRA_MODE = "extra_mode";
@@ -71,4 +73,6 @@ public final class AppConst {
     public static final String EXTRA_DEST_LAT = "extra_dest_lat";
     public static final String EXTRA_DEST_LNG = "extra_dest_lng";
     public static final String EXTRA_DEST_NAME = "extra_dest_name";
+    /** 公交方案对象（TransitSearch.Plan，Serializable）用于列表→详情页传递 */
+    public static final String EXTRA_PLAN = "extra_transit_plan";
 }
