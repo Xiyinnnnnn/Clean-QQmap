@@ -11,21 +11,20 @@ import com.tencent.map.navi.data.NaviTts;
 import java.util.Locale;
 
 /**
- * 本机 TTS「纯转发器」（android.speech.tts.TextToSpeech）。
+ * 本机 TTS 转发器（android.speech.tts.TextToSpeech）。
  *
- * <p><b>设计原则：官方说什么，就播什么。</b>
+ * <p><b>设计原则：官方说什么，就播什么；同一句只播一次，文本变了才播。</b>
  * 官方导航回调 {@code onVoiceBroadcast(NaviTts)} 交给我们的 {@code NaviTts}，
- * 这里只把 {@code naviTts.getText()} 原样交给系统 TTS 朗读，
- * <b>不做去重、不做队列管理、不生成/改写任何文案</b>——
- * 语音该不该说、说几遍，完全交给官方 SDK 的语音状态机决定。
+ * 这里把 {@code naviTts.getText()} 交给系统 TTS 朗读。
  *
- * <p>为什么砍掉旧版三层去重（正在播报丢弃 / 8s 文本指纹 / TTS id 幂等）：
+ * <p><b>去重（文本级）：</b>官方状态机在 GPS 弱信号 / 卡路口时会反复下发<b>同一句</b>
+ * 文本，纯转发会把每句都播出来 → 一直重复。因此记录「最近一次朗读的文本」，
+ * 相同文本只播一次，文本变化（新指令）才播。
+ *
+ * <p>为什么是「文本级」而不是旧版三层去重（正在播报丢弃 / 8s 指纹 / id 幂等）：
  * <ul>
- *   <li>去重只能「少播」，不能「多播」，它治不了 GPS 弱信号时官方状态机
- *       反复下发同一句导致的重复，反而会在正常连播时把下一句吞掉（漏播）。</li>
- *   <li>「正在播报就丢弃」在路口连续指令（"前方500米右转"→"前方路口右转"）
- *       场景下，前一句没播完就把后一句丢了，是漏播的直接来源。</li>
- *   <li>砍掉后逻辑只剩「转发」，我们自己这一侧引入 bug 的面降到最小。</li>
+ *   <li>「正在播报就丢弃」会在路口连播时吞掉下一句（漏播）——已证伪。</li>
+ *   <li>文本级去重只挡「同一句反复下发」，不挡「不同的新指令」，不漏播。</li>
  * </ul>
  *
  * <p>保留的两处「必要处理」（非业务逻辑，是 TextToSpeech 的固有约束）：
@@ -47,6 +46,8 @@ public final class TtsSpeaker {
     private volatile boolean released;
     /** TTS 未就绪时暂存的最后一句（就绪后补播） */
     private String pending;
+    /** 最近一次决定朗读的文本（文本级去重：相同文本只播一次） */
+    private String lastSpoken;
 
     public void init(Context context) {
         if (tts != null || released) {
@@ -80,7 +81,7 @@ public final class TtsSpeaker {
         }
     }
 
-    /** 官方导航语音事件 → 本机 TTS（纯转发，不加工）。 */
+    /** 官方导航语音事件 → 本机 TTS（文本级去重：同一句只播一次）。 */
     public void speak(NaviTts naviTts) {
         if (naviTts == null) {
             return;
@@ -88,17 +89,22 @@ public final class TtsSpeaker {
         speak(naviTts.getText());
     }
 
-    /** 纯转发：官方给什么文本就播什么文本。 */
+    /** 转发 + 文本级去重：同一句只播一次，文本变了才播。 */
     public void speak(final String text) {
         if (text == null || text.length() == 0) {
             return;
         }
         if (!ready) {
-            // TTS 还没就绪，暂存最后一句，就绪后补播
+            // TTS 还没就绪，暂存最后一句，就绪后补播（同文本覆盖无副作用）
             pending = text;
             Log.i(TAG, "TTS 未就绪，暂存: " + text);
             return;
         }
+        // 文本级去重：同一句只播一次，文本变化才播
+        if (text.equals(lastSpoken)) {
+            return;
+        }
+        lastSpoken = text;
         main.post(() -> {
             try {
                 if (tts != null && !released) {
@@ -126,6 +132,7 @@ public final class TtsSpeaker {
         released = true;
         ready = false;
         pending = null;
+        lastSpoken = null;
         try {
             if (tts != null) {
                 tts.stop();
