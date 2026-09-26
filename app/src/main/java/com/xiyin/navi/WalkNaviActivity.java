@@ -22,7 +22,6 @@ import com.xiyin.navi.core.LocationFix;
 import com.xiyin.navi.core.KeyManager;
 import com.xiyin.navi.core.NavUtil;
 import com.xiyin.navi.core.OffRouteMonitor;
-import com.xiyin.navi.core.WeakSignalFeeder;
 import com.xiyin.navi.core.NaviListenerAdapter;
 import com.xiyin.navi.core.TtsSpeaker;
 
@@ -49,8 +48,6 @@ public class WalkNaviActivity extends AppCompatActivity implements AppLocation.L
     private final AtomicBoolean viewInited = new AtomicBoolean(false);
     /** 偏航监控：外部注入定位时 SDK 不会自动重算，必须自行判定 */
     private OffRouteMonitor offRouteMonitor;
-    /** 弱信号兜底：GPS 弱时改用绑路位置喂 SDK，防状态机卡死重播 */
-    private WeakSignalFeeder weakSignalFeeder;
 
     private NaviPoi start;
     private NaviPoi dest;
@@ -106,9 +103,6 @@ public class WalkNaviActivity extends AppCompatActivity implements AppLocation.L
                 if (offRouteMonitor != null) {
                     offRouteMonitor.onAttachedLocation(attached);
                 }
-                if (weakSignalFeeder != null) {
-                    weakSignalFeeder.onAttached(attached);
-                }
             }
             @Override public void onOffRoute() {
                 if (offRouteMonitor != null) {
@@ -116,10 +110,6 @@ public class WalkNaviActivity extends AppCompatActivity implements AppLocation.L
                 }
             }
         });
-
-        weakSignalFeeder = new WeakSignalFeeder(
-                (loc, status, reason) -> walkManager.updateLocation(loc, status, reason));
-        weakSignalFeeder.start();
 
         AppLocation.get().start(this);
         AppLocation.get().addListener(this);
@@ -191,9 +181,6 @@ public class WalkNaviActivity extends AppCompatActivity implements AppLocation.L
             return;
         }
         walkManager.updateLocation(NavUtil.toGpsLocation(fix), fix.status, fix.reason);
-        if (weakSignalFeeder != null) {
-            weakSignalFeeder.onGoodFix();
-        }
     }
 
     /** 视角：需求为「完全俯视」，即 2D 地图朝北（SDK 默认是 2.5D 车头朝上） */
@@ -277,9 +264,6 @@ public class WalkNaviActivity extends AppCompatActivity implements AppLocation.L
             }
         } catch (Throwable t) {
             Log.w(TAG, "stopNavi 失败: " + t);
-        }
-        if (weakSignalFeeder != null) {
-            weakSignalFeeder.stop();
         }
         tts.stop();
         tts.release();

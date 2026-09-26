@@ -27,7 +27,6 @@ import com.xiyin.navi.core.LocationFix;
 import com.xiyin.navi.core.KeyManager;
 import com.xiyin.navi.core.NavUtil;
 import com.xiyin.navi.core.OffRouteMonitor;
-import com.xiyin.navi.core.WeakSignalFeeder;
 import com.xiyin.navi.core.TtsSpeaker;
 
 import java.util.ArrayList;
@@ -54,8 +53,6 @@ public class CarNaviActivity extends AppCompatActivity implements AppLocation.Li
     private final AtomicBoolean routeSearched = new AtomicBoolean(false);
     /** 偏航监控：SDK 的自动重算依赖其内部定位，我们用外部定位，必须自行判定 */
     private OffRouteMonitor offRouteMonitor;
-    /** 弱信号兜底：GPS 弱时改用绑路位置喂 SDK，防状态机卡死重播 */
-    private WeakSignalFeeder weakSignalFeeder;
 
     private NaviPoi start;
     private NaviPoi dest;
@@ -104,9 +101,6 @@ naviManager = new TencentCarNaviManager(this);
         naviManager.addNaviView(carNaviView);
         naviManager.setInternalTtsEnabled(false);   // 语音交给本机 TTS，避免双播
         naviManager.setNaviCallback(naviCallback);
-        weakSignalFeeder = new WeakSignalFeeder(
-                (loc, status, reason) -> naviManager.updateLocation(loc, status, reason));
-        weakSignalFeeder.start();
 
         CarNaviInfoPanel panel = carNaviView.showNaviInfoPanel();
         panel.setOnNaviInfoListener(this::finish);
@@ -201,9 +195,6 @@ naviManager = new TencentCarNaviManager(this);
             return;
         }
         naviManager.updateLocation(NavUtil.toGpsLocation(fix), fix.status, fix.reason);
-        if (weakSignalFeeder != null) {
-            weakSignalFeeder.onGoodFix();
-        }
     }
 
     private final TencentNaviCallback naviCallback = new TencentNaviCallback() {
@@ -277,9 +268,6 @@ naviManager = new TencentCarNaviManager(this);
             if (offRouteMonitor != null) {
                 offRouteMonitor.onAttachedLocation(attachedLocation);
             }
-            if (weakSignalFeeder != null) {
-                weakSignalFeeder.onAttached(attachedLocation);
-            }
         }
 
         @Override
@@ -336,9 +324,6 @@ naviManager = new TencentCarNaviManager(this);
             }
         } catch (Throwable t) {
             Log.w(TAG, "stopNavi 失败: " + t);
-        }
-        if (weakSignalFeeder != null) {
-            weakSignalFeeder.stop();
         }
         tts.stop();
         tts.release();
