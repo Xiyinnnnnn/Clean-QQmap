@@ -1,5 +1,13 @@
 # 更新日志
 
+## v4.3.0
+- 语音播报改**纯 TTS 转发**：`TtsSpeaker` 砍掉自研三层去重（正在播丢弃 / 8s 文本指纹 / id 幂等），只做官方 `onVoiceBroadcast` 的转发（`QUEUE_FLUSH`）。
+  去重只能"少播"不能"多播"，治不了弱 GPS 时官方反复下发同一句，反在路口连播时吞下一句（漏播）。
+- 新增 **`WeakSignalFeeder` 弱信号兜底**（car/ride/walk 三模式共用）：
+  记录 SDK 绑路位置，GPS 弱（>3s 无实测 fix）时喂绑路位置（`provider=low_conf`、`status=3`），
+  防导航状态机"饿死"卡路口反复重播；实测 fix 恢复即切回。
+- 修复：弱 GPS 场景导航卡住、语音反复重复。
+
 ## v4.1.0
 - 新增：**公交 / 地铁换乘查询**
   （腾讯地图 WebService `direction/v1/transit`；腾讯导航 SDK 不提供公交实时导航，公交场景即换乘方案规划）
