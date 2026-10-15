@@ -114,7 +114,7 @@ naviManager = new TencentCarNaviManager(this);
         searchRoute();
     }
 
-    /** 视角：需求为「完全俯视」，即 2D 地图朝北（SDK 默认是 2.5D 车头朝上） */
+    /** 视角：默认「路线朝前」（2.5D，按路线方向朝上）；导航引擎按路线方向驱动，不用手机朝向 */
     private void applyNaviViewMode() {
         try {
             if (carNaviView == null) {

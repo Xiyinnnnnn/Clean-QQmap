@@ -51,10 +51,14 @@ public final class AppConst {
 
     /**
      * 导航视角开关。
-     * <p>true  = 完全俯视（2D 地图朝北）→ {@code NaviMode.MODE_2DMAP_TOWARDS_NORTH}
-     * <br>false = 2.5D 车头朝上（SDK 默认）→ {@code NaviMode.MODE_3DCAR_TOWARDS_UP}
+     * <p>false = 路线朝前（2.5D，车头/行进方向朝上）→ {@code NaviMode.MODE_3DCAR_TOWARDS_UP}
+     * <br>true  = 完全俯视（2D 地图朝北）→ {@code NaviMode.MODE_2DMAP_TOWARDS_NORTH}
+     *
+     * <p>两种模式的地图朝向都由导航引擎按<b>路线方向</b>驱动（roadDirection = 地图匹配
+     * 路线朝向），<b>不使用手机设备朝向</b>，因此不会出现"随手机乱转/乱飘"。
+     * v4.4 起默认「路线朝前」。
      */
-    public static final boolean NAVI_OVERHEAD_VIEW = true;
+    public static final boolean NAVI_OVERHEAD_VIEW = false;
 
     /** 精度劣化容忍：新结果比当前结果差超过该值（米）时丢弃。 */
     public static final float ACCURACY_DROP_TOLERANCE_M = 200f;

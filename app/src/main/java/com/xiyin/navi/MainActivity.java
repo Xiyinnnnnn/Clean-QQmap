@@ -30,7 +30,7 @@ import com.tencent.tencentmap.mapsdk.maps.model.MarkerOptions;
 import com.xiyin.navi.core.AppConst;
 import com.xiyin.navi.core.AppLocation;
 import com.xiyin.navi.core.LocationFix;
-import com.xiyin.navi.core.OrientationSensor;
+import com.xiyin.navi.core.CourseTracker;
 import com.xiyin.navi.core.KeyManager;
 import com.xiyin.navi.core.PlaceSearch;
 
@@ -45,7 +45,7 @@ import java.util.Locale;
  * → 顶部搜索框输入 + 回车/点搜索按钮 → 点结果选为终点 → 选导航方式 → 实时导航。
  */
 public class MainActivity extends AppCompatActivity
-        implements AppLocation.Listener, AppLocation.StatusListener, OrientationSensor.Listener {
+        implements AppLocation.Listener, AppLocation.StatusListener {
 
     private static final String TAG = "MyNaviMain";
     private static final int REQ_PERM = 100;
@@ -61,11 +61,9 @@ public class MainActivity extends AppCompatActivity
     private Marker myMarker;
     private Marker destMarker;
 
-    /** 设备朝向传感器：让箭头随身体方位旋转（GPS 的 bearing 静止时为 0，不能用于此） */
-    private final OrientationSensor orientationSensor = new OrientationSensor();
-    /** 传感器给出的方位角；-1 表示尚不可用 */
-    private volatile float sensorAzimuth = -1f;
-    /** 最近一次 GPS 速度（m/s），用于判断该用 GPS 航向还是设备朝向 */
+    /** 移动方向推算器：由定位位移推算实际移动方向，不依赖任何设备姿态传感器 */
+    private final CourseTracker courseTracker = new CourseTracker();
+    /** 最近一次 GPS 速度（m/s），仅用于状态显示 */
     private volatile float lastSpeed;
 
     /** 起点恒为当前位置（真实 GPS） */
@@ -437,6 +435,7 @@ public class MainActivity extends AppCompatActivity
             myMarker.setPosition(ll);
         }
         lastSpeed = fix.speed;
+        courseTracker.update(fix);
         myMarker.setRotation(resolveBearing(fix));
 
         if (!firstCenterDone) {
@@ -457,36 +456,21 @@ public class MainActivity extends AppCompatActivity
     }
 
     /**
-     * 朝向解析（混合策略）：
+     * 箭头朝向解析：一律以「实际移动方向」为准，不再使用设备朝向传感器。
      * <ul>
-     *   <li>在移动（速度 > 1.5m/s）：用 GPS 航向，方向更贴合实际行进</li>
-     *   <li>静止或传感器可用：用设备朝向，身体转身箭头就跟着转</li>
+     *   <li>优先：{@link CourseTracker} 由相邻定位位移算出的移动方向
+     *       （最贴合实际行进，且不受磁场干扰——这正是旧版"朝向乱飘"的根因）</li>
+     *   <li>兜底：定位系统自带的航向 {@code fix.bearing}（移动时有效；静止时为 0）</li>
      * </ul>
-     * 这样站着不动也能正确指示朝向，正是之前"箭头不转"的根因。
+     * 静止时 CourseTracker 保持上一次方向，箭头既不乱转也不会强行回北。
      */
     private float resolveBearing(LocationFix fix) {
-        boolean moving = fix.speed > 1.5f;
-        // 移动中且 GPS 确实给出了有效航向（非 0）时，用 GPS 航向更贴合行进方向
-        if (moving && fix.bearing > 0.5f) {
-            return fix.bearing;
+        float course = courseTracker.getCourse();
+        if (!Float.isNaN(course)) {
+            return course;
         }
-        // 静止、或 GPS 未给出航向（系统此时恒返回 0）→ 用设备朝向
-        if (sensorAzimuth >= 0f) {
-            return sensorAzimuth;
-        }
+        // 尚未积累出位移方向（刚启动/静止不动）→ 用定位航向兜底
         return fix.bearing;
-    }
-
-    /** 设备朝向变化 → 立即旋转箭头（不必等 GPS 回调，转动手腕就能看到箭头跟转） */
-    @Override
-    public void onOrientation(float azimuthDegrees) {
-        sensorAzimuth = azimuthDegrees;
-        if (myMarker != null) {
-            boolean moving = lastSpeed > 1.5f;
-            if (!moving) {
-                myMarker.setRotation(azimuthDegrees);
-            }
-        }
     }
 
     @Override
@@ -501,8 +485,7 @@ public class MainActivity extends AppCompatActivity
         AppLocation loc = AppLocation.get();
         long age = loc.getAgeMs();
         String ageText = age < 0 ? "未定位" : (age / 1000) + "s前";
-        String bearingSrc = orientationSensor.isAvailable()
-                ? (lastSpeed > 1.5f ? "GPS航向" : "设备朝向") : "GPS航向(无传感器)";
+        String bearingSrc = courseTracker.describe();
         txtStatus.setText(String.format(Locale.CHINA,
                 "定位：%s ｜ 有效 %d 次 ｜ 丢弃 %d ｜ 卫星 %d ｜ 间隔 %ds ｜ 朝向 %s",
                 ageText, loc.getFixCount(), loc.getRejectedCount(),
@@ -635,9 +618,6 @@ public class MainActivity extends AppCompatActivity
     protected void onResume() {
         super.onResume();
         startLocation();
-        // 方向传感器：只在页面可见时开启，省电
-        orientationSensor.addListener(this);
-        orientationSensor.start(this);
 
         // 从导航页返回 → 清掉之前的终点，并把视野刷新回当前定位
         if (wentToNavi) {
@@ -702,8 +682,6 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onPause() {
         main.removeCallbacks(statusTick);
-        orientationSensor.removeListener(this);
-        orientationSensor.stop();
         super.onPause();
     }
 
