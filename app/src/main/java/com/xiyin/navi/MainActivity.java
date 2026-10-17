@@ -464,26 +464,28 @@ public class MainActivity extends AppCompatActivity
     }
 
     /**
-     * 箭头朝向解析：以「加速度基线 + 陀螺仪修正」的融合方向为主，绝不使用磁力计。
+     * 箭头朝向解析。
+     *
+     * <p><b>真实方向以「移动方向」为基线</b>（{@link CourseTracker} 由相邻定位位移/
+     * 加速度推算的实际行进方向）——只要走过一段距离，方向就以此为准，横握手机也不影响。
      * <ul>
-     *   <li><b>主</b>：{@link AccelGyroHeading} —— 加速度计提供重力基准，陀螺仪做短时角速度
-     *       积分修正，绝对方向由移动方向（COG）锚定。既平滑跟手，又不受磁场干扰，
-     *       这正是旧版"朝向乱飘"的根治。</li>
-     *   <li><b>次</b>：{@link CourseTracker} 位移方向（融合器尚未锚定时，如刚启动）。</li>
+     *   <li><b>主（真实方向）</b>：{@link CourseTracker} 位移推算方向。</li>
+     *   <li><b>次（辅助）</b>：{@link AccelGyroHeading} 融合方向（加速度基线 + 陀螺仪积分），
+     *       仅在<b>静止/低速</b>、尚无位移方向时提供，用于"在路口的试探性旋转判断方向"；
+     *       一旦积累出位移方向即被覆盖。磁力计只参与一次初始定北，不参与连续。</li>
      *   <li><b>兜底</b>：定位系统航向 {@code fix.bearing}（移动时有效；静止时为 0）。</li>
      * </ul>
-     * 静止时融合器冻结方位、CourseTracker 保持上次方向，箭头既不乱转也不强行回北。
      */
     private float resolveBearing(LocationFix fix) {
-        // 主：加速度基线 + 陀螺仪融合方向（0/360 语义与 Marker.rotation 一致）
-        float fused = headingFuser.getHeading();
-        if (!Float.isNaN(fused)) {
-            return fused;
-        }
-        // 次：尚未锚定（刚启动/一直静止）→ 位移推算方向
+        // 主：真实移动方向（走过一段距离后以此为准，可覆盖陀螺仪的累积）
         float course = courseTracker.getCourse();
         if (!Float.isNaN(course)) {
             return course;
+        }
+        // 次：静止/未积累出位移方向 → 陀螺仪辅助（路口试探性旋转判断）
+        float fused = headingFuser.getHeading();
+        if (!Float.isNaN(fused)) {
+            return fused;
         }
         // 兜底：定位航向
         return fix.bearing;
@@ -498,23 +500,24 @@ public class MainActivity extends AppCompatActivity
     }
 
     /**
-     * 更新融合器的<b>绝对方向锚</b>：移动方向（COG）优先、GPS 航向兜底，
-     * 喂给融合器把方位钉回真北，从而抑制陀螺积分漂移。
-     * 静止且无位移方向时不更新（保留上次锚，仅靠陀螺补间）。
+     * 融合器的<b>兜底播种</b>：仅在磁力计尚未完成初始定北（或无磁力计）时，
+     * 用移动方向（COG）/ GPS 航向给融合器一个初始北方。
+     * 磁力计定北成功后（融合器已在内部忽略后续种子）不再覆盖——连续阶段不使用磁力计。
      */
     private void updateReferenceBearing(LocationFix fix) {
-        float course = courseTracker.getCourse();
-        float ref;
-        if (!Float.isNaN(course)) {
-            ref = course;
-        } else if (fix.speed > 0.8f && !Float.isNaN(fix.bearing) && fix.bearing > 0f) {
-            ref = fix.bearing;
-        } else {
-            return; // 无有效绝对方向 → 保留上次锚点
+        if (headingFuser.hasHeading()) {
+            return; // 已定北（磁力计或此前种子）→ 不覆盖
         }
-        refBearing = ref;
-        refBearingTime = System.currentTimeMillis();
-        headingFuser.setReferenceBearing(ref);
+        float course = courseTracker.getCourse();
+        if (!Float.isNaN(course)) {
+            refBearing = course;
+            refBearingTime = System.currentTimeMillis();
+            headingFuser.setReferenceBearing(course);
+        } else if (fix.speed > 0.8f && !Float.isNaN(fix.bearing) && fix.bearing > 0f) {
+            refBearing = fix.bearing;
+            refBearingTime = System.currentTimeMillis();
+            headingFuser.setReferenceBearing(fix.bearing);
+        }
     }
 
     @Override
@@ -529,8 +532,8 @@ public class MainActivity extends AppCompatActivity
         AppLocation loc = AppLocation.get();
         long age = loc.getAgeMs();
         String ageText = age < 0 ? "未定位" : (age / 1000) + "s前";
-        String bearingSrc = headingFuser.hasHeading()
-                ? headingFuser.describe() : courseTracker.describe();
+        String bearingSrc = !Float.isNaN(courseTracker.getCourse())
+                ? courseTracker.describe() : headingFuser.describe();
         txtStatus.setText(String.format(Locale.CHINA,
                 "定位：%s ｜ 有效 %d 次 ｜ 丢弃 %d ｜ 卫星 %d ｜ 间隔 %ds ｜ 朝向 %s",
                 ageText, loc.getFixCount(), loc.getRejectedCount(),
