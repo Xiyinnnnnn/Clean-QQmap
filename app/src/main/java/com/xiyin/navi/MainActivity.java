@@ -30,6 +30,7 @@ import com.tencent.tencentmap.mapsdk.maps.model.MarkerOptions;
 import com.xiyin.navi.core.AppConst;
 import com.xiyin.navi.core.AppLocation;
 import com.xiyin.navi.core.LocationFix;
+import com.xiyin.navi.core.AccelGyroHeading;
 import com.xiyin.navi.core.CourseTracker;
 import com.xiyin.navi.core.KeyManager;
 import com.xiyin.navi.core.PlaceSearch;
@@ -45,7 +46,7 @@ import java.util.Locale;
  * → 顶部搜索框输入 + 回车/点搜索按钮 → 点结果选为终点 → 选导航方式 → 实时导航。
  */
 public class MainActivity extends AppCompatActivity
-        implements AppLocation.Listener, AppLocation.StatusListener {
+        implements AppLocation.Listener, AppLocation.StatusListener, AccelGyroHeading.Listener {
 
     private static final String TAG = "MyNaviMain";
     private static final int REQ_PERM = 100;
@@ -63,6 +64,12 @@ public class MainActivity extends AppCompatActivity
 
     /** 移动方向推算器：由定位位移推算实际移动方向，不依赖任何设备姿态传感器 */
     private final CourseTracker courseTracker = new CourseTracker();
+    /** 方向融合器：加速度计(重力)为基线 + 陀螺仪做短时修正，完全不使用磁力计 */
+    private final AccelGyroHeading headingFuser = new AccelGyroHeading();
+    /** 融合方向的绝对锚：最近一次由移动方向/ GPS 航向确定的方向（NaN=无） */
+    private volatile float refBearing = Float.NaN;
+    /** 最近一次喂入锚点的时刻 */
+    private volatile long refBearingTime;
     /** 最近一次 GPS 速度（m/s），仅用于状态显示 */
     private volatile float lastSpeed;
 
@@ -436,6 +443,7 @@ public class MainActivity extends AppCompatActivity
         }
         lastSpeed = fix.speed;
         courseTracker.update(fix);
+        updateReferenceBearing(fix);
         myMarker.setRotation(resolveBearing(fix));
 
         if (!firstCenterDone) {
@@ -456,21 +464,57 @@ public class MainActivity extends AppCompatActivity
     }
 
     /**
-     * 箭头朝向解析：一律以「实际移动方向」为准，不再使用设备朝向传感器。
+     * 箭头朝向解析：以「加速度基线 + 陀螺仪修正」的融合方向为主，绝不使用磁力计。
      * <ul>
-     *   <li>优先：{@link CourseTracker} 由相邻定位位移算出的移动方向
-     *       （最贴合实际行进，且不受磁场干扰——这正是旧版"朝向乱飘"的根因）</li>
-     *   <li>兜底：定位系统自带的航向 {@code fix.bearing}（移动时有效；静止时为 0）</li>
+     *   <li><b>主</b>：{@link AccelGyroHeading} —— 加速度计提供重力基准，陀螺仪做短时角速度
+     *       积分修正，绝对方向由移动方向（COG）锚定。既平滑跟手，又不受磁场干扰，
+     *       这正是旧版"朝向乱飘"的根治。</li>
+     *   <li><b>次</b>：{@link CourseTracker} 位移方向（融合器尚未锚定时，如刚启动）。</li>
+     *   <li><b>兜底</b>：定位系统航向 {@code fix.bearing}（移动时有效；静止时为 0）。</li>
      * </ul>
-     * 静止时 CourseTracker 保持上一次方向，箭头既不乱转也不会强行回北。
+     * 静止时融合器冻结方位、CourseTracker 保持上次方向，箭头既不乱转也不强行回北。
      */
     private float resolveBearing(LocationFix fix) {
+        // 主：加速度基线 + 陀螺仪融合方向（0/360 语义与 Marker.rotation 一致）
+        float fused = headingFuser.getHeading();
+        if (!Float.isNaN(fused)) {
+            return fused;
+        }
+        // 次：尚未锚定（刚启动/一直静止）→ 位移推算方向
         float course = courseTracker.getCourse();
         if (!Float.isNaN(course)) {
             return course;
         }
-        // 尚未积累出位移方向（刚启动/静止不动）→ 用定位航向兜底
+        // 兜底：定位航向
         return fix.bearing;
+    }
+
+    /** 融合器回调：把最新融合方向刷到箭头（与定位刷新同一主线程）。 */
+    @Override
+    public void onHeading(float azimuthDegrees) {
+        if (myMarker != null) {
+            myMarker.setRotation(azimuthDegrees);
+        }
+    }
+
+    /**
+     * 更新融合器的<b>绝对方向锚</b>：移动方向（COG）优先、GPS 航向兜底，
+     * 喂给融合器把方位钉回真北，从而抑制陀螺积分漂移。
+     * 静止且无位移方向时不更新（保留上次锚，仅靠陀螺补间）。
+     */
+    private void updateReferenceBearing(LocationFix fix) {
+        float course = courseTracker.getCourse();
+        float ref;
+        if (!Float.isNaN(course)) {
+            ref = course;
+        } else if (fix.speed > 0.8f && !Float.isNaN(fix.bearing) && fix.bearing > 0f) {
+            ref = fix.bearing;
+        } else {
+            return; // 无有效绝对方向 → 保留上次锚点
+        }
+        refBearing = ref;
+        refBearingTime = System.currentTimeMillis();
+        headingFuser.setReferenceBearing(ref);
     }
 
     @Override
@@ -485,7 +529,8 @@ public class MainActivity extends AppCompatActivity
         AppLocation loc = AppLocation.get();
         long age = loc.getAgeMs();
         String ageText = age < 0 ? "未定位" : (age / 1000) + "s前";
-        String bearingSrc = courseTracker.describe();
+        String bearingSrc = headingFuser.hasHeading()
+                ? headingFuser.describe() : courseTracker.describe();
         txtStatus.setText(String.format(Locale.CHINA,
                 "定位：%s ｜ 有效 %d 次 ｜ 丢弃 %d ｜ 卫星 %d ｜ 间隔 %ds ｜ 朝向 %s",
                 ageText, loc.getFixCount(), loc.getRejectedCount(),
@@ -619,6 +664,9 @@ public class MainActivity extends AppCompatActivity
         super.onResume();
         startLocation();
 
+        headingFuser.addListener(this);
+        headingFuser.start(this);
+
         // 从导航页返回 → 清掉之前的终点，并把视野刷新回当前定位
         if (wentToNavi) {
             wentToNavi = false;
@@ -682,6 +730,8 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onPause() {
         main.removeCallbacks(statusTick);
+        headingFuser.removeListener(this);
+        headingFuser.stop();
         super.onPause();
     }
 
